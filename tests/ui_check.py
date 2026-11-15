@@ -134,6 +134,7 @@ def step3():
     cur = var(root.property("current"))
     check(bool(cur) and cur["lookup"] == "Aamulla aurinko paistoi.", f"hold and drag selects an area ({cur and cur['lookup']!r})")
     check(pages.property("contentY") == y_before, "selecting does not scroll")
+    check(var(root.property("footerWord")) is None, "an area is not shown in the footer")
     QTimer.singleShot(300, lambda: (check(root.property("currentTr") == "AAMULLA AURINKO PAISTOI.",
                                           "the whole area is translated"), QTimer.singleShot(200, finish)))
 

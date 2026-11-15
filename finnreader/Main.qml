@@ -69,6 +69,8 @@ ApplicationWindow {
     property bool panelVisible: false   // reading first: the vocabulary panel starts hidden
     property var current: null          // word dict from backend.pageWords (+ page)
     property string currentTr: ""
+    // the footer is for single words; an area's translation only shows in the bubble
+    readonly property var footerWord: current && !current.key.startsWith("area:") ? current : null
     property var marks: backend.marks
     property var markByKey: {           // word key -> mark (a mark may span several words)
         let m = {}
@@ -543,14 +545,14 @@ ApplicationWindow {
             spacing: 12
 
             Label {
-                text: root.current ? root.current.lookup : ""
+                text: root.footerWord ? root.footerWord.lookup : ""
                 font.pixelSize: 19; font.weight: Font.DemiBold
-                visible: root.current !== null
+                visible: root.footerWord !== null
             }
             Label {
-                text: root.current ? "→  " + (root.shownTr || "…") : root.hint
-                font.pixelSize: root.current ? 19 : 14
-                color: root.current ? root.accent : root.muted
+                text: root.footerWord ? "→  " + (root.shownTr || "…") : root.hint
+                font.pixelSize: root.footerWord ? 19 : 14
+                color: root.footerWord ? root.accent : root.muted
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
