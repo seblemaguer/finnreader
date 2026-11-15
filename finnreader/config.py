@@ -18,7 +18,8 @@ _WORD = ("translate", "mark", "none")
 _PAGE = ("previous_page", "next_page", "none")
 # allowed actions per gesture; the first three act on the word under the pointer
 GESTURES: dict[str, tuple[str, ...]] = {"hover": ("translate", "none"), "click": _WORD, "double_click": _WORD,
-            "swipe_left": _PAGE, "swipe_right": _PAGE, "left_margin_click": _PAGE, "right_margin_click": _PAGE}
+            "swipe_left": _PAGE, "swipe_right": _PAGE, "left_margin_click": _PAGE, "right_margin_click": _PAGE,
+            "hold_drag": ("translate_area", "none")}  # press and hold (or Shift+press), then drag over text
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
 PATH = CONFIG_DIR / "finnreader" / "config.yaml"
@@ -45,6 +46,7 @@ DEFAULTS: Config = {
         "swipe_right": "next_page",
         "left_margin_click": "previous_page",
         "right_margin_click": "next_page",
+        "hold_drag": "translate_area",
     },
     "last_file": "",
     "export_format": "org",              # a name in export.FORMATS

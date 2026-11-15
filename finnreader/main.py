@@ -309,6 +309,30 @@ class Backend(QObject):
                 self._words[page] = d.page_words(self.doc[page])
         return self._words[page]
 
+    @Slot(int, float, float, float, float, result="QVariantMap")
+    def area(self, page: int, x0: float, y0: float, x1: float, y1: float) -> dict[str, object]:
+        """Describe the text in an area of a page, to translate it as a whole.
+
+        Parameters
+        ----------
+        page : int
+            0-based page number.
+        x0, y0, x1, y1 : float
+            Two opposite corners of the area, in PDF points.
+
+        Returns
+        -------
+        dict
+            Shaped like a word (``key``, ``lookup``, ``x0 y0 x1 y1`` = the box around the words
+            found, ``page``) so QML shows it like one; empty when the area holds no word.
+        """
+        text, inside = d.area_text(self.pageWords(page), x0, y0, x1, y1)
+        if not inside:
+            return {}
+        return dict(key=f"area:{page}:{inside[0]['key']}:{inside[-1]['key']}", lookup=text, text=text, page=page,
+                    x0=min(w["x0"] for w in inside), y0=min(w["y0"] for w in inside),
+                    x1=max(w["x1"] for w in inside), y1=max(w["y1"] for w in inside))
+
     def _save_pdf(self) -> None:
         """Save the highlights into the PDF; the caller holds :data:`DOC_LOCK`."""
         assert self.doc and self.path

@@ -113,7 +113,9 @@ class OpusMT:
         import torch
         with self._lock, torch.inference_mode():
             tok, model = self._get(source, target)
-            out = model.generate(**tok([text], return_tensors="pt"), max_length=64, num_beams=4)
+            inputs = tok([text], return_tensors="pt", truncation=True)
+            # a selected area can be a whole paragraph: let the output be about twice the input
+            out = model.generate(**inputs, max_length=max(64, 2 * inputs["input_ids"].shape[1] + 16), num_beams=4)
             return tok.decode(out[0], skip_special_tokens=True)
 
 

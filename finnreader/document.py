@@ -411,6 +411,36 @@ def page_words(page: pymupdf.Page) -> list[Word]:
     return words
 
 
+def area_text(words: Sequence[Word], x0: float, y0: float, x1: float, y1: float) -> tuple[str, list[Word]]:
+    """Return the text of the words inside an area, in reading order.
+
+    Parameters
+    ----------
+    words : sequence of Word
+        The words of the page, from :func:`page_words`.
+    x0, y0, x1, y1 : float
+        Two opposite corners of the area, in PDF points, in any order.
+
+    Returns
+    -------
+    text : str
+        The words whose centre is in the area, joined by spaces; a word hyphenated across lines is
+        written whole.
+    inside : list of Word
+        Those words.
+    """
+    left, right, top, bottom = min(x0, x1), max(x0, x1), min(y0, y1), max(y0, y1)
+    inside = [w for w in words
+              if left <= (w["x0"] + w["x1"]) / 2 <= right and top <= (w["y0"] + w["y1"]) / 2 <= bottom]
+    tokens: list[str] = []
+    for i, w in enumerate(inside):
+        if i and _hyphen_join(inside[i - 1], w):
+            tokens[-1] = tokens[-1][:-1] + w["text"]
+        else:
+            tokens.append(w["text"])
+    return " ".join(tokens), inside
+
+
 def _hyphen_join(a: Word, b: Word) -> bool:
     """Tell whether two consecutive words are the halves of a word hyphenated across lines.
 

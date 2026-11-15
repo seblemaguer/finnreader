@@ -9,6 +9,8 @@ uv run finnreader path/to/book.pdf
 
 - **Click** (or tap) a word → translation in a bubble above it and in the bottom bar. No popup to close: click
   elsewhere to dismiss it.
+- **Hold and drag** (press, wait a moment, then drag; or Shift+drag with a mouse) over some text → the whole
+  area is translated at once, e.g. a sentence or an expression whose words mean something else together.
 - **Double-click** a word → highlight it and keep its translation (toggle). Edit/remove kept words in the right panel; click a word there to jump to its page.
 - **Fix a translation**: click/tap a highlighted word (or just mark it) → it appears in the bottom bar's editor; type, Enter to save, Esc to cancel.
 - The **vocabulary panel** (toolbar) lists all marks; it starts hidden.
@@ -18,8 +20,8 @@ uv run finnreader path/to/book.pdf
 - **Page by page** (default) shows one whole page at a time; the toolbar toggle (or `continuous: true`) switches to
   continuous scrolling.
 - **Interactions are configurable** (Settings → Interactions, or `interactions:` in the config): for each gesture —
-  `hover`, `click`, `double_click` (on a word), `left_margin_click`, `right_margin_click`, `swipe_left`,
-  `swipe_right` — pick an action: `translate`, `mark`, `previous_page`, `next_page` or `none`.
+  `hover`, `click`, `double_click` (on a word), `hold_drag` (over an area), `left_margin_click`, `right_margin_click`, `swipe_left`,
+  `swipe_right` — pick an action: `translate`, `mark`, `translate_area`, `previous_page`, `next_page` or `none`.
 - **Highlights live in the PDF** as standard highlight annotations (visible in any PDF reader), saved incrementally,
   so the original content is never rewritten. Everything else is autosaved to `book.json` next to `book.pdf`:
   per mark the annotation's xref, page, word ids and boxes, text, lookup form, translation, colour and languages.

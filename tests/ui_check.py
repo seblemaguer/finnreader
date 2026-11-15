@@ -121,7 +121,21 @@ def step2():
 def step3():
     check(root.property("continuous") is True and root.property("currentPage") == 1,
           f"continuous mode keeps page 2 (currentPage={root.property('currentPage')})")
-    QTimer.singleShot(500, finish)
+    # hold and drag over the first sentence of page 2, in continuous mode (the list must not scroll)
+    w1 = b.pageWords(1)
+    first = [w for w in w1 if w["text"] == "Aamulla"][0]; last = [w for w in w1 if w["text"] == "paistoi."][0]
+    start, end = pt(first["x0"] - 2, first["y0"] - 2, page=1), pt(last["x1"] + 2, last["y1"] + 2, page=1)
+    y_before = pages.property("contentY")
+    QTest.mousePress(root, Qt.LeftButton, Qt.NoModifier, start)
+    QTest.qWait(600)                                     # hold
+    for i in range(1, 11):
+        QTest.mouseMove(root, start + (end - start) * i / 10); QTest.qWait(10)
+    QTest.mouseRelease(root, Qt.LeftButton, Qt.NoModifier, end); app.processEvents()
+    cur = var(root.property("current"))
+    check(bool(cur) and cur["lookup"] == "Aamulla aurinko paistoi.", f"hold and drag selects an area ({cur and cur['lookup']!r})")
+    check(pages.property("contentY") == y_before, "selecting does not scroll")
+    QTimer.singleShot(300, lambda: (check(root.property("currentTr") == "AAMULLA AURINKO PAISTOI.",
+                                          "the whole area is translated"), QTimer.singleShot(200, finish)))
 
 
 def finish():

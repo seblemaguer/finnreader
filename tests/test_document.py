@@ -59,6 +59,17 @@ def test_export(tmp_path=Path(__import__("tempfile").mkdtemp())):
     assert export.output_path(pdf, "markdown") == tmp_path / "kirja.md"
 
 
+def test_area_text(tmp_path=Path(__import__("tempfile").mkdtemp())):
+    import pymupdf
+    pdf = tmp_path / "kirja.pdf"
+    subprocess.run([sys.executable, ROOT / "samples/make_sample.py", pdf], check=True)
+    words = d.page_words(pymupdf.open(pdf)[0])
+    a, z = [w for w in words if w["text"] == "hiljai-"][0], [w for w in words if w["text"] == "nen."][0]
+    text, inside = d.area_text(words, a["x1"] + 1, z["y1"] + 1, z["x0"] - 1, a["y0"] - 1)  # corners in any order
+    assert text.endswith("ja hiljainen.") and inside[-1] is z      # hyphenated word joined back
+    assert d.area_text(words, 0, 0, 10, 10) == ("", [])
+
+
 def test_highlight_roundtrip(tmp_path=Path(__import__("tempfile").mkdtemp())):
     import pymupdf
     pdf = tmp_path / "h.pdf"

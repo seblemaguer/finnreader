@@ -61,7 +61,8 @@ ApplicationWindow {
     readonly property string hint: {
         const names = { hover: "hover", click: "click", double_click: "double-click" }
         const parts = Object.keys(names).filter(g => ia[g] && ia[g] !== "none").map(g => names[g] + " a word to " + ia[g])
-        return parts.join(" · ") + " · swipe or tap the margins to turn pages"
+        return parts.join(" · ") + (ia.hold_drag === "translate_area" ? " · hold and drag to translate an area" : "")
+            + " · swipe or tap the margins to turn pages"
     }
 
     // ---- reading state ----
@@ -313,7 +314,7 @@ ApplicationWindow {
                         readonly property bool below: hoverBox.y - height - 8 < 0
                         visible: hoverBox.visible && root.shownTr !== ""
                         z: 10
-                        width: bubble.implicitWidth + 20; height: bubble.implicitHeight + 10
+                        width: bubble.width + 20; height: bubble.height + 10
                         x: Math.max(0, Math.min(paper.width - width, hoverBox.x + hoverBox.width / 2 - width / 2))
                         y: below ? hoverBox.y + hoverBox.height + 8 : hoverBox.y - height - 8
                         Rectangle {
@@ -322,7 +323,17 @@ ApplicationWindow {
                             y: bubbleBox.below ? -4 : parent.height - 6
                         }
                         Rectangle { anchors.fill: parent; color: "#263238"; radius: 6 }
-                        Label { id: bubble; anchors.centerIn: parent; text: root.shownTr; color: "white"; font.pixelSize: 15 }
+                        Label {
+                            id: bubble; anchors.centerIn: parent; text: root.shownTr; color: "white"; font.pixelSize: 15
+                            width: Math.min(implicitWidth, paper.width - 40); wrapMode: Text.Wrap   // an area's translation can be long
+                        }
+                    }
+
+                    // area being selected (hold and drag)
+                    Rectangle {
+                        id: selectionBox
+                        visible: false
+                        color: Qt.rgba(0, 0.47, 0.42, 0.12); border.color: root.accent; border.width: 1
                     }
                 }
 
@@ -331,6 +342,9 @@ ApplicationWindow {
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton
                     property real pressX; property real pressY; property double pressTime; property bool swiped
+                    property bool selecting: false
+                    pressAndHoldInterval: 400
+                    preventStealing: selecting   // while selecting, a drag must not scroll the list
                     property real wheelSum: 0
                     function wordAt(mx, my) {
                         const x = (mx - paper.x) / root.zoom, y = (my - paper.y) / root.zoom
@@ -351,12 +365,33 @@ ApplicationWindow {
                         const dir = marginAt(mx)
                         return dir < 0 ? root.ia.left_margin_click : dir > 0 ? root.ia.right_margin_click : ""
                     }
+                    // the selection rectangle, from the press point to (mx, my), in paper coordinates
+                    function select(mx, my) {
+                        selectionBox.x = Math.min(pressX, mx) - paper.x; selectionBox.y = Math.min(pressY, my) - paper.y
+                        selectionBox.width = Math.abs(mx - pressX); selectionBox.height = Math.abs(my - pressY)
+                    }
+                    function startSelecting() {
+                        selecting = true
+                        select(pressX, pressY)
+                        selectionBox.visible = true
+                    }
                     onPressed: mouse => {
                         pages.forceActiveFocus()   // arrow keys turn pages; text fields keep their own arrows
                         pressX = mouse.x; pressY = mouse.y; pressTime = Date.now(); swiped = false
+                        if ((mouse.modifiers & Qt.ShiftModifier) && root.ia.hold_drag === "translate_area") startSelecting()
                     }
+                    onPressAndHold: if (root.ia.hold_drag === "translate_area" && !selecting) startSelecting()
+                    onCanceled: { selecting = false; selectionBox.visible = false }
                     // a swipe: quick, mostly horizontal; finger moving left = swipe_left
                     onReleased: mouse => {
+                        if (selecting) {
+                            selecting = false; selectionBox.visible = false; swiped = true   // swiped: no click either
+                            const z = root.zoom
+                            const a = backend.area(pageItem.index, (pressX - paper.x) / z, (pressY - paper.y) / z,
+                                                   (mouse.x - paper.x) / z, (mouse.y - paper.y) / z)
+                            if (a.lookup) { root.current = null; root.setCurrent(a, true) }
+                            return
+                        }
                         const dx = mouse.x - pressX, dy = mouse.y - pressY
                         if (Math.abs(dx) > 50 && Math.abs(dx) > 1.5 * Math.abs(dy) && Date.now() - pressTime < 800) {
                             swiped = true
@@ -364,6 +399,7 @@ ApplicationWindow {
                         }
                     }
                     onPositionChanged: mouse => {
+                        if (selecting) { select(mouse.x, mouse.y); return }
                         if (pressed || root.ia.hover !== "translate") return
                         const w = wordAt(mouse.x, mouse.y)
                         if (w) root.setCurrent(w, false)
@@ -381,6 +417,7 @@ ApplicationWindow {
                         }
                     }
                     onDoubleClicked: mouse => {
+                        if (selecting) return
                         const w = wordAt(mouse.x, mouse.y)
                         if (w) root.act(root.ia.double_click, w, pageItem.index)
                         // 2nd tap of a fast double tap in the margin: turn again, from the page the 1st tap showed
@@ -682,7 +719,7 @@ ApplicationWindow {
                 Repeater {
                     id: gestureRows
                     // reading order (the map from Python comes back sorted alphabetically)
-                    model: ["hover", "click", "double_click", "left_margin_click", "right_margin_click", "swipe_left", "swipe_right"]
+                    model: ["hover", "click", "double_click", "hold_drag", "left_margin_click", "right_margin_click", "swipe_left", "swipe_right"]
                         .filter(g => g in backend.gestures)
                     RowLayout {
                         id: row
@@ -692,7 +729,7 @@ ApplicationWindow {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Label {
-                            text: ({ hover: "Hover a word", click: "Click a word", double_click: "Double-click a word",
+                            text: ({ hover: "Hover a word", click: "Click a word", double_click: "Double-click a word", hold_drag: "Hold and drag",
                                      swipe_left: "Swipe left", swipe_right: "Swipe right",
                                      left_margin_click: "Click left margin", right_margin_click: "Click right margin" })[row.modelData] || row.modelData
                             Layout.preferredWidth: 150
@@ -703,7 +740,7 @@ ApplicationWindow {
                             implicitHeight: 40
                             topInset: 0; bottomInset: 0
                             textRole: "text"; valueRole: "value"
-                            model: backend.gestures[row.modelData].map(a => ({ value: a, text: a.replace("_", " ") }))
+                            model: backend.gestures[row.modelData].map(a => ({ value: a, text: a.replace(/_/g, " ") }))
                             Component.onCompleted: row.reset()
                         }
                     }
