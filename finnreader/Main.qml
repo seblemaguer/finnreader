@@ -220,7 +220,7 @@ ApplicationWindow {
                 enabled: backend.pageCount > 0 && !backend.busy
                 onClicked: backend.importHighlights()
             }
-            IconButton { iconName: "export"; text: "Export to Org (Ctrl+E)"; enabled: backend.pageCount > 0; onClicked: backend.exportOrg() }
+            IconButton { iconName: "export"; text: "Export to " + cfg.export_format + " (Ctrl+E)"; enabled: backend.pageCount > 0; onClicked: backend.exportDocument() }
             IconButton {
                 iconName: "panel"; text: "Vocabulary (" + root.marks.length + ")"
                 checkable: true; checked: root.panelVisible; onToggled: root.panelVisible = checked
@@ -232,7 +232,7 @@ ApplicationWindow {
     Shortcut { sequences: [StandardKey.Open]; onActivated: openDialog.open() }
     Shortcut { sequences: [StandardKey.ZoomIn]; onActivated: root.zoomBy(0.1) }
     Shortcut { sequences: [StandardKey.ZoomOut]; onActivated: root.zoomBy(-0.1) }
-    Shortcut { sequence: "Ctrl+E"; onActivated: backend.exportOrg() }
+    Shortcut { sequence: "Ctrl+E"; onActivated: backend.exportDocument() }
     Shortcut { sequence: "Escape"; onActivated: root.selectedId = "" }
 
     FileDialog {
@@ -592,6 +592,7 @@ ApplicationWindow {
             colorSwatch.color = cfg.highlight_color; opacitySlider.value = cfg.highlight_opacity
             delayBox.value = cfg.hover_delay; continuousSwitch.checked = cfg.continuous
             for (let i = 0; i < gestureRows.count; i++) gestureRows.itemAt(i).reset()
+            formatCombo.currentIndex = Math.max(0, backend.exportFormats.indexOf(cfg.export_format))
         }
         function interactions() {
             const out = {}
@@ -605,7 +606,8 @@ ApplicationWindow {
                 opus_model: opusField.text.trim(),
                 highlight_color: colorSwatch.color.toString(), highlight_opacity: opacitySlider.value,
                 hover_delay: delayBox.value,
-                continuous: continuousSwitch.checked, interactions: interactions()
+                continuous: continuousSwitch.checked, interactions: interactions(),
+                export_format: formatCombo.currentText
             })
             if (root.current) { const w = root.current; root.current = null; root.setCurrent(w) }
         }
@@ -707,12 +709,21 @@ ApplicationWindow {
                     }
                 }
 
-                Section { text: "ORG EXPORT" }
+                Section { text: "EXPORT" }
+                Label { text: "Format" }
+                ComboBox {
+                    id: formatCombo
+                    objectName: "formatCombo"
+                    Layout.preferredWidth: 220
+                    implicitHeight: 40
+                    topInset: 0; bottomInset: 0
+                    model: backend.exportFormats
+                }
                 Label { text: "Template" }
                 RowLayout {
                     Layout.fillWidth: true
                     Label {
-                        text: root.cfg.org_template.split("\n").length + " lines"
+                        text: (root.cfg.templates[formatCombo.currentText] || "").split("\n").length + " lines"
                         color: root.muted; Layout.fillWidth: true
                     }
                     Button { text: "Edit…"; objectName: "editTemplate"; onClicked: templateDialog.open() }
@@ -725,15 +736,16 @@ ApplicationWindow {
     Dialog {
         id: templateDialog
         objectName: "templateDialog"
-        title: "Org export template"
+        property string format: formatCombo.currentText  // the format chosen in Settings, even before Save
+        title: format + " export template"
         modal: true
         anchors.centerIn: parent
         width: Math.min(1000, root.width - 40)
         height: root.height - 40
         standardButtons: Dialog.Save | Dialog.Cancel
         background: Rectangle { color: root.surface; radius: 14 }
-        onAboutToShow: templateArea.text = root.cfg.org_template
-        onAccepted: backend.saveConfig({ org_template: templateArea.text })
+        onAboutToShow: templateArea.text = root.cfg.templates[format] || backend.defaultTemplates[format]
+        onAccepted: backend.saveConfig({ templates: Object.assign({}, root.cfg.templates, { [format]: templateArea.text }) })
 
         ColumnLayout {
             anchors.fill: parent
@@ -753,7 +765,7 @@ ApplicationWindow {
                     }
                 }
                 Item { Layout.fillWidth: true }
-                Button { text: "Reset to default"; flat: true; onClicked: templateArea.text = backend.defaultTemplate }
+                Button { text: "Reset to default"; flat: true; onClicked: templateArea.text = backend.defaultTemplates[templateDialog.format] }
             }
             ScrollView {
                 Layout.fillWidth: true

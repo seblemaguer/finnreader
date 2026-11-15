@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from finnreader import document as d
+from finnreader import document as d, export
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,10 +19,10 @@ def test_split_sentences():
     assert s("- Moi. - Hei.") == ["– Moi.", "– Hei."]
 
 
-def test_org_date():
+def test_long_date():
     import datetime
-    assert d.org_date(datetime.date(2026, 11, 14)) == "14 November 2026"
-    assert d.org_date(datetime.date(2027, 1, 1)) == "1 January 2027"
+    assert export.long_date(datetime.date(2026, 11, 14)) == "14 November 2026"
+    assert export.long_date(datetime.date(2027, 1, 1)) == "1 January 2027"
 
 
 def test_annotate():
@@ -46,13 +46,17 @@ def test_export(tmp_path=Path(__import__("tempfile").mkdtemp())):
     d.save_metadata(pdf, marks, source="fi", target="en")
     assert d.load_metadata(pdf)["marks"] == [m] and (tmp_path / "kirja.json").exists()
     marks = {x["id"]: x for x in d.load_metadata(pdf)["marks"]}
-    org = d.org_export(pdf, marks, "#+TITLE: {TITLE}\n:ID: {ID}\n#+DATE: {DATE}\n{CONTENT}")
-    assert d.org_date() in org
+    org = export.render(pdf, marks, "org", "#+TITLE: {TITLE}\n:ID: {ID}\n#+DATE: {DATE}\n{CONTENT}")
+    assert export.long_date() in org
     assert org.startswith("#+TITLE: Testikirja\n:ID: ") and "{" not in org
     assert "\n* Ensimmäinen luku\n" in org and "\n* Toinen luku\n" in org
     assert org.count("Ensimmäinen luku") == 1  # heading text not duplicated as a paragraph
     assert "hiljainen[quiet]." in org
     assert "\n2\n" not in org  # page numbers dropped
+    md = export.render(pdf, marks, "markdown")
+    assert md.startswith("---\nid: ") and 'title: "Testikirja"' in md and "{" not in md
+    assert "\n# Ensimmäinen luku\n" in md and "hiljainen[quiet]." in md
+    assert export.output_path(pdf, "markdown") == tmp_path / "kirja.md"
 
 
 def test_highlight_roundtrip(tmp_path=Path(__import__("tempfile").mkdtemp())):

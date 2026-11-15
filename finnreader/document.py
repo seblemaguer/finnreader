@@ -12,11 +12,9 @@ itself, which is a PDF annotation. Its keys are ``id``, ``xref`` (of the highlig
 """
 from __future__ import annotations
 
-import datetime
 import json
 import os
 import re
-import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -353,22 +351,6 @@ def find_new_highlights(doc: pymupdf.Document, marks: Mapping[str, Mark], color:
             for page in doc for xref, ws in find_highlights(page, page_words(page), color) if xref not in known]
 
 
-def org_path(pdf_path: PathLike) -> Path:
-    """Return the org export of a PDF: same folder and name, ``.org`` suffix.
-
-    Parameters
-    ----------
-    pdf_path : str or os.PathLike
-        The PDF.
-
-    Returns
-    -------
-    Path
-        The org file next to it.
-    """
-    return Path(pdf_path).with_suffix(".org")
-
-
 def find_highlights(page: pymupdf.Page, words: Sequence[Word], color: str,
                     tol: float = 0.12) -> list[tuple[int, list[Word]]]:
     """Find the highlight annotations of about a colour, with the words under them.
@@ -525,11 +507,16 @@ def _norm(s: str) -> str:
     return re.sub(r"\W+", " ", s).strip().lower()
 
 
-def org_export(pdf_path: PathLike, marks: Mapping[str, Mark], template: str, title: str | None = None) -> str:
-    """Convert a PDF and its marks into an org-mode document.
+Block = tuple[str, Any]
+"""``("head", (level, title))`` or ``("para", [(text, translation), ...])``."""
 
-    The PDF outline becomes org headings, each marked word or phrase is followed by its translation
-    in square brackets, and paragraphs are written one sentence per line.
+
+def blocks(pdf_path: PathLike, marks: Mapping[str, Mark]) -> tuple[str, list[Block]]:
+    """Read a PDF as a sequence of headings and paragraphs, ready to be written in any format.
+
+    The PDF outline gives the headings, placed where their destination is on the page. Hyphenated
+    words are joined, page numbers dropped, and a paragraph cut by a page or column break is glued
+    back. Each mark's translation goes with its last word.
 
     Parameters
     ----------
@@ -537,18 +524,17 @@ def org_export(pdf_path: PathLike, marks: Mapping[str, Mark], template: str, tit
         The PDF.
     marks : mapping of str to Mark
         Its marks.
-    template : str
-        The document; ``{ID}``, ``{TITLE}``, ``{DATE}`` and ``{CONTENT}`` are replaced.
-    title : str, optional
-        Defaults to the PDF's title metadata, then its file name.
 
     Returns
     -------
-    str
-        The org document.
+    title : str
+        The PDF's title metadata, else its file name.
+    blocks : list of Block
+        Headings and paragraphs in reading order; a paragraph is a list of ``(word, translation)``,
+        with an empty translation for unmarked words.
     """
     doc = pymupdf.open(pdf_path)
-    title = title or doc.metadata.get("title") or Path(pdf_path).stem
+    title = doc.metadata.get("title") or Path(pdf_path).stem
     # outline -> (page, y, level, title); y=None means top of the page
     heads = []
     for entry in doc.get_toc(simple=False):
@@ -562,19 +548,19 @@ def org_export(pdf_path: PathLike, marks: Mapping[str, Mark], template: str, tit
 
     # a mark's translation goes after its last word (multi-word highlights get one translation)
     tr_by_last_key = {m["keys"][-1]: m.get("translation", "") for m in marks.values()}
-    out: list[tuple[str, Any]] = []  # ("head", text) / ("para", [tokens])
+    out: list[Block] = []
     hi = 0
     for page in doc:
-        blocks: dict[int, list[Word]] = {}
+        by_block: dict[int, list[Word]] = {}
         for w in page_words(page):
-            blocks.setdefault(w["block"], []).append(w)
-        for _, ws in sorted(blocks.items(), key=lambda kv: min(w["y0"] for w in kv[1])):
+            by_block.setdefault(w["block"], []).append(w)
+        for _, ws in sorted(by_block.items(), key=lambda kv: min(w["y0"] for w in kv[1])):
             y0 = min(w["y0"] for w in ws)
             just_headed = None
             while hi < len(heads) and (heads[hi][0] < page.number or
                                        (heads[hi][0] == page.number and (heads[hi][1] or 0) <= y0 + 5)):
                 _, _, lvl, htitle = heads[hi]
-                out.append(("head", "*" * lvl + " " + htitle))
+                out.append(("head", (lvl, htitle)))
                 just_headed = htitle
                 hi += 1
             # tokens with dehyphenation and translations
@@ -590,51 +576,15 @@ def org_export(pdf_path: PathLike, marks: Mapping[str, Mark], template: str, tit
             if not text.strip() or text.strip().isdigit():
                 continue  # empty or page number
             if just_headed and _norm(text) == _norm(just_headed):
-                continue  # the heading itself, already emitted as an org heading
-            para = [annotate(t, tr) for t, tr, _ in tokens]
+                continue  # the heading itself, already a heading
+            para = [(t, tr) for t, tr, _ in tokens]
             prev = out[-1] if out else None
             # paragraph broken by a page/column break: glue back
-            if prev and prev[0] == "para" and not SENT_END.search(prev[1][-1]) \
-                    and not prev[1][-1].endswith(":") and para[0][:1].islower():
+            if prev and prev[0] == "para" and not SENT_END.search(prev[1][-1][0]) \
+                    and not prev[1][-1][0].endswith(":") and para[0][0][:1].islower():
                 prev[1].extend(para)
             else:
                 out.append(("para", para))
     for _, _, lvl, htitle in heads[hi:]:
-        out.append(("head", "*" * lvl + " " + htitle))
-
-    chunks = [text if kind == "head" else "\n".join(split_sentences(" ".join(text))) for kind, text in out]
-    content = "\n\n".join(chunks)
-    return (template.replace("{ID}", str(uuid.uuid4()).upper()).replace("{TITLE}", title)
-            .replace("{DATE}", org_date()).replace("{CONTENT}", content))
-
-
-MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
-          "November", "December")  # not strftime("%B"): Qt sets the process locale, which would give "marraskuu"
-
-
-def org_date(day: datetime.date | None = None) -> str:
-    """Format a date for ``{DATE}``, in English whatever the locale.
-
-    Parameters
-    ----------
-    day : datetime.date, optional
-        Defaults to today.
-
-    Returns
-    -------
-    str
-        e.g. ``"14 November 2026"``.
-    """
-    day = day or datetime.date.today()
-    return f"{day.day} {MONTHS[day.month - 1]} {day.year}"
-
-
-DEFAULT_TEMPLATE = """:PROPERTIES:
-:ID:       {ID}
-:END:
-#+TITLE: {TITLE}
-#+DATE: {DATE}
-#+STARTUP: showall
-
-{CONTENT}
-"""
+        out.append(("head", (lvl, htitle)))
+    return title, out

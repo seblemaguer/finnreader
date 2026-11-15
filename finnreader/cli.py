@@ -3,7 +3,7 @@
 Usage::
 
     finnreader import BOOK.pdf [MORE.pdf ...]   highlights of the configured colour -> marks, translated
-    finnreader export BOOK.pdf [MORE.pdf ...]   BOOK.org next to each PDF
+    finnreader export [--format F] BOOK.pdf ...  BOOK.org (or .md, …) next to each PDF
     finnreader subtitles FILM.mkv [MORE.srt ...]  FILM.pdf next to each subtitle file or video
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ import pymupdf
 
 from . import config
 from . import document as d
+from . import export
 from . import subtitles
 from .translators import DEFAULT_OPUS_MODEL, ENGINES, OPUS, load_plugins, translate
 
@@ -58,8 +59,8 @@ def import_one(pdf: Path, cfg: config.Config) -> str:
     return f"{len(new)} new highlight(s) imported{note}" + (f", {failed} without translation" if failed else "")
 
 
-def export_one(pdf: Path, cfg: config.Config) -> str:
-    """Write the org export next to a PDF, with the configured template.
+def export_one(pdf: Path, cfg: config.Config, fmt: str) -> str:
+    """Write the export of a PDF next to it, with the configured template of the format.
 
     Parameters
     ----------
@@ -67,6 +68,8 @@ def export_one(pdf: Path, cfg: config.Config) -> str:
         The PDF.
     cfg : Config
         The configuration.
+    fmt : str
+        A name in :data:`finnreader.export.FORMATS`.
 
     Returns
     -------
@@ -75,8 +78,8 @@ def export_one(pdf: Path, cfg: config.Config) -> str:
     """
     # migrated v1 marks only get an in-memory highlight here: export never writes the PDF or the JSON
     marks, _ = d.open_marks(pymupdf.open(pdf), pdf, cfg["highlight_color"], cfg["highlight_opacity"])
-    out = d.org_path(pdf)
-    out.write_text(d.org_export(pdf, marks, cfg["org_template"] or d.DEFAULT_TEMPLATE), encoding="utf-8")
+    out = export.output_path(pdf, fmt)
+    out.write_text(export.render(pdf, marks, fmt, cfg["templates"].get(fmt)), encoding="utf-8")
     return f"-> {out} ({len(marks)} translated word(s))"
 
 
@@ -124,9 +127,12 @@ def run(argv: Sequence[str]) -> int:
                                  "(run without a command to open the reader).")
     ap.add_argument("--config", type=Path, default=config.PATH, help=f"YAML configuration (default: {config.PATH})")
     sub = ap.add_subparsers(dest="command", required=True)
-    for name, text in (("import", "turn highlights of the configured colour into translated marks"),
-                       ("export", "write BOOK.org next to each BOOK.pdf")):
-        sub.add_parser(name, help=text).add_argument("pdfs", nargs="+", type=Path, metavar="PDF")
+    sub.add_parser("import", help="turn highlights of the configured colour into translated marks") \
+        .add_argument("pdfs", nargs="+", type=Path, metavar="PDF")
+    ep = sub.add_parser("export", help="write BOOK.org (or .md, …) next to each BOOK.pdf")
+    ep.add_argument("pdfs", nargs="+", type=Path, metavar="PDF")
+    ep.add_argument("-f", "--format", choices=list(export.FORMATS),
+                    help="export format (default: export_format of the configuration)")
     sp = sub.add_parser("subtitles", help="make a readable dialogue PDF from subtitle files or videos")
     sp.add_argument("pdfs", nargs="+", type=Path, metavar="FILE", help=".srt/.vtt/.ass or a video with subtitles")
     sp.add_argument("-o", "--output", type=Path, help="output PDF (one input only; default: next to the input)")
@@ -151,8 +157,13 @@ def run(argv: Sequence[str]) -> int:
         return 2
     OPUS.template = cfg["opus_model"] or DEFAULT_OPUS_MODEL
 
-    action = import_one if args.command == "import" else export_one
-    return _batch(args.pdfs, lambda pdf: action(pdf, cfg))
+    if args.command == "import":
+        return _batch(args.pdfs, lambda pdf: import_one(pdf, cfg))
+    fmt = args.format or cfg["export_format"]
+    if fmt not in export.FORMATS:
+        print(f"error: unknown export format {fmt!r}; available: {', '.join(export.FORMATS)}", file=sys.stderr)
+        return 2
+    return _batch(args.pdfs, lambda pdf: export_one(pdf, cfg, fmt))
 
 
 def _batch(files: Iterable[Path], action: Callable[[Path], str]) -> int:

@@ -134,9 +134,9 @@ def finish():
           "Settings → Save writes interactions/continuous to the YAML unchanged")
     tdlg = root.findChild(QObject, "templateDialog"); tdlg.open(); app.processEvents()
     area = root.findChild(QObject, "templateArea")
-    check(area.property("text") == saved["org_template"], "template dialog shows the saved template")
+    check(area.property("text") == saved["templates"]["org"], "template dialog shows the saved template")
     area.setProperty("text", "#+TITLE: {TITLE}\n{CONTENT}"); tdlg.accept(); app.processEvents()
-    check(m.config.load(cfg_path)["org_template"] == "#+TITLE: {TITLE}\n{CONTENT}", "template dialog saves the template")
+    check(m.config.load(cfg_path)["templates"]["org"] == "#+TITLE: {TITLE}\n{CONTENT}", "template dialog saves the template")
     root.grabWindow().save(sys.argv[1])
     app.exit(1 if errors else 0)
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from .document import DEFAULT_TEMPLATE
+from .export import FORMATS
 from .translators import DEFAULT_OPUS_MODEL
 
 _WORD = ("translate", "mark", "none")
@@ -47,7 +47,8 @@ DEFAULTS: Config = {
         "right_margin_click": "next_page",
     },
     "last_file": "",
-    "org_template": DEFAULT_TEMPLATE,    # {ID} {TITLE} {DATE} {CONTENT}
+    "export_format": "org",              # a name in export.FORMATS
+    "templates": {name: f.template for name, f in FORMATS.items()},  # {ID} {TITLE} {DATE} {CONTENT}
 }
 
 
@@ -65,7 +66,8 @@ def load(path: str | os.PathLike[str] = PATH) -> Config:
     Returns
     -------
     Config
-        Every key of :data:`DEFAULTS`; ``interactions`` is merged key by key.
+        Every key of :data:`DEFAULTS`; ``interactions`` and ``templates`` are merged key by key.
+        The ``org_template`` of older versions becomes ``templates.org``.
 
     Raises
     ------
@@ -83,8 +85,11 @@ def load(path: str | os.PathLike[str] = PATH) -> Config:
         raise ValueError(f"{path}: {e}") from e
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected a mapping of settings")
+    if "org_template" in data:
+        data.setdefault("templates", {}).setdefault("org", data.pop("org_template"))
     cfg = {**DEFAULTS, **data}
-    cfg["interactions"] = {**DEFAULTS["interactions"], **(data.get("interactions") or {})}
+    for key in ("interactions", "templates"):
+        cfg[key] = {**DEFAULTS[key], **(data.get(key) or {})}
     return cfg
 
 
@@ -108,6 +113,8 @@ def problems(cfg: Config) -> list[str]:
     out += [f"interactions.{g}: unknown gesture" for g in cfg["interactions"] if g not in GESTURES]
     out += [f"interactions.{g}: {a!r} is not one of {', '.join(GESTURES[g])}"
             for g, a in cfg["interactions"].items() if g in GESTURES and a not in GESTURES[g]]
+    if cfg["export_format"] not in FORMATS:
+        out.append(f"export_format: {cfg['export_format']!r} is not one of {', '.join(FORMATS)}")
     return out
 
 
@@ -115,7 +122,7 @@ class _Dumper(yaml.SafeDumper):
     """YAML dumper writing multi-line strings as literal blocks."""
 
 
-# multi-line strings (the org template) as readable literal blocks
+# multi-line strings (the export templates) as readable literal blocks
 _Dumper.add_representer(str, lambda d, s: d.represent_scalar("tag:yaml.org,2002:str", s, style="|" if "\n" in s else None))
 
 
@@ -150,8 +157,10 @@ def _from_qsettings() -> Config:
     if not qs.allKeys():
         return {}
     keys = {"source": "source", "target": "target", "opusModel": "opus_model", "highlightOpacity": "highlight_opacity",
-            "hoverDelay": "hover_delay", "zoomFactor": "zoom", "lastFile": "last_file", "template": "org_template"}
+            "hoverDelay": "hover_delay", "zoomFactor": "zoom", "lastFile": "last_file"}
     out = {new: qs.value(old) for old, new in keys.items() if qs.contains(old)}
+    if qs.contains("template"):
+        out["templates"] = {**DEFAULTS["templates"], "org": qs.value("template")}
     if qs.contains("engines"):
         out["translators"] = [e.strip() for e in str(qs.value("engines")).split(",") if e.strip()]
     if qs.contains("highlight"):

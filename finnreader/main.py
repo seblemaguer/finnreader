@@ -21,6 +21,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 from . import config
 from . import document as d
+from . import export
 from . import subtitles
 from .config import Config
 from .document import Mark, Word
@@ -219,10 +220,15 @@ class Backend(QObject):
         """The actions allowed for each gesture."""
         return {g: list(a) for g, a in config.GESTURES.items()}
 
-    @Property(str, constant=True)
-    def defaultTemplate(self) -> str:
-        """The default org export template."""
-        return d.DEFAULT_TEMPLATE
+    @Property("QVariantMap", constant=True)
+    def defaultTemplates(self) -> dict[str, str]:
+        """The default template of each export format."""
+        return {name: f.template for name, f in export.FORMATS.items()}
+
+    @Property(list, constant=True)
+    def exportFormats(self) -> list[str]:
+        """The names of the export formats."""
+        return list(export.FORMATS)
 
     @Property(str, constant=True)
     def defaultOpusModel(self) -> str:
@@ -598,14 +604,15 @@ class Backend(QObject):
 
     # ---- export ---------------------------------------------------------
     @Slot()
-    def exportOrg(self) -> None:
-        """Write the org export next to the PDF, with the configured template."""
+    def exportDocument(self) -> None:
+        """Write the export next to the PDF, in the configured format and template."""
         if not self.path:
             return
-        out = d.org_path(self.path)
+        fmt = self.cfg["export_format"] if self.cfg["export_format"] in export.FORMATS else "org"
+        out = export.output_path(self.path, fmt)
         try:
             with DOC_LOCK:
-                text = d.org_export(self.path, self._marks, self.cfg["org_template"] or d.DEFAULT_TEMPLATE)
+                text = export.render(self.path, self._marks, fmt, self.cfg["templates"].get(fmt))
             out.write_text(text, encoding="utf-8")
             self.message.emit(f"Exported to {out}")
         except Exception as e:  # noqa: BLE001

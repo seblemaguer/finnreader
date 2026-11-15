@@ -111,9 +111,12 @@ def test_import():
 def test_config_roundtrip_and_broken_file():
     path = fake_config()
     b = m.Backend(config_path=path)
-    b.saveConfig({"zoom": 0.7, "org_template": "#+TITLE: {TITLE}\n#+DATE: {DATE}\n\n{CONTENT}\n"})
-    assert config.load(path)["zoom"] == 0.7 and "{DATE}" in config.load(path)["org_template"]
+    b.saveConfig({"zoom": 0.7, "templates": {**b.cfg["templates"], "org": "#+TITLE: {TITLE}\n#+DATE: {DATE}\n\n{CONTENT}\n"}})
+    assert config.load(path)["zoom"] == 0.7 and "{DATE}" in config.load(path)["templates"]["org"]
     assert "|" in path.read_text()                       # template stored as a readable YAML block
+    path.write_text("org_template: 'old {CONTENT}'\n")             # older versions: becomes templates.org
+    old = config.load(path)
+    assert old["templates"]["org"] == "old {CONTENT}" and "org_template" not in old and "markdown" in old["templates"]
     path.write_text("zoom: [unclosed")
     b = m.Backend(config_path=path)
     assert b.configError and b.config["zoom"] == 1.0     # defaults...
@@ -140,6 +143,8 @@ def test_cli_batch_import_export(capsys=None):
     for pdf in pdfs:
         org = pdf.with_suffix(".org").read_text()
         assert "Talo[TALO] oli" in org and "#+DATE: " in org
+    assert cli.run(["--config", str(cfg), "export", "--format", "markdown", str(pdfs[0])]) == 0
+    assert "Talo[TALO] oli" in pdfs[0].with_suffix(".md").read_text()
 
 
 

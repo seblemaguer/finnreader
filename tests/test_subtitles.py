@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pymupdf
 
-from finnreader import cli, document as d, subtitles as s
+from finnreader import cli, export, subtitles as s
 
 ROOT = Path(__file__).resolve().parents[1]
 SRT = ROOT / "samples/elokuva.srt"
@@ -32,7 +32,7 @@ def test_pdf_reads_back_as_dialogue():
     assert s.make_pdf(SRT, out) == 9
     doc = pymupdf.open(out)
     assert doc.metadata["title"] == "elokuva" and [t[1] for t in doc.get_toc()] == ["0:00", "5:00"]
-    org = d.org_export(out, {}, "{CONTENT}")
+    org = export.render(out, {}, "org", "{CONTENT}")
     assert "* 0:00\n" in org and "* 5:00\n\n– Missä sinä olit?\n\n– Kotona." in org
     assert org.index("asema oli tyhjä") < org.index("* 5:00")    # outline y keeps headings in place
 
