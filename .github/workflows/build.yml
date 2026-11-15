@@ -1,0 +1,50 @@
+# Standalone FinnReader for Linux, Windows and macOS (PyInstaller builds on each OS's own runner).
+# Run it from the Actions tab, or push a tag v*; the archives are attached to the run as artifacts.
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, archive: FinnReader-linux-x86_64.tar.gz }   # oldest glibc = widest Linux support
+          - { os: windows-latest, archive: FinnReader-windows-x86_64.zip }
+          - { os: macos-14, archive: FinnReader-macos-arm64.zip }            # Apple Silicon
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 libxkbcommon-x11-0 libfontconfig1
+      - name: Install
+        run: uv sync --python 3.12 --extra offline --group build
+      - name: Build
+        run: uv run pyinstaller --noconfirm packaging/finnreader.spec
+      - name: Smoke test
+        run: |
+          dist/finnreader/finnreader-cli --help
+          dist/finnreader/finnreader-cli subtitles samples/elokuva.srt -o "$RUNNER_TEMP/elokuva.pdf"
+          QT_QPA_PLATFORM=offscreen uv run python tests/test_document.py
+      - name: Archive
+        run: |
+          cd dist
+          case "$RUNNER_OS" in
+            Linux)   tar czf "../${{ matrix.archive }}" finnreader ;;
+            Windows) 7z a "../${{ matrix.archive }}" finnreader ;;
+            macOS)   ditto -c -k --keepParent FinnReader.app "../${{ matrix.archive }}" ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+          retention-days: 30
