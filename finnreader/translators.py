@@ -81,7 +81,16 @@ class OpusMT:
                 from transformers import MarianMTModel, MarianTokenizer
             except ImportError as e:
                 raise RuntimeError("opus-mt needs: uv sync --extra offline") from e
-            self._models[name] = (MarianTokenizer.from_pretrained(name), MarianMTModel.from_pretrained(name).eval())
+            try:  # a model already on disk loads without contacting the hub (which retries for a minute offline)
+                tok, model = (MarianTokenizer.from_pretrained(name, local_files_only=True),
+                              MarianMTModel.from_pretrained(name, local_files_only=True))
+            except (OSError, TypeError):  # not on disk (transformers 5 raises TypeError): download it once
+                try:
+                    tok, model = MarianTokenizer.from_pretrained(name), MarianMTModel.from_pretrained(name)
+                except Exception as e:  # noqa: BLE001 - network, unknown model name, …
+                    raise RuntimeError(f"model {name} is not downloaded yet; connect to the internet once "
+                                       f"to download it ({e.__class__.__name__})") from e
+            self._models[name] = (tok, model.eval())
         return self._models[name]
 
     def load(self, source: str, target: str) -> None:
