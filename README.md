@@ -36,6 +36,9 @@ continuous scrolling, and opens the vocabulary panel.
 
 Your translation of a word also shows wherever that word appears in the same book.
 
+Ready to read with less help? Switch the translator off in the toolbar: only the words you marked still show a
+translation. You can keep marking words and type their translations yourself.
+
 ## Your highlights
 
 Highlights are saved into the PDF itself, so other PDF readers show them too. The translations are saved in

@@ -361,15 +361,16 @@ class Backend(QObject):
     def translate(self, word: str) -> None:
         """Translate a word; the result arrives through :attr:`translated`.
 
-        A translation fixed by the user on a mark of the same word wins over the translators.
+        A translation fixed by the user on a mark of the same word wins over the translators. With the
+        translator off (``translate: false``), only those translations are emitted.
 
         Parameters
         ----------
         word : str
             Word to translate.
         """
-        if not word:
-            return
+        if not word or not (self.cfg["translate"] or self._mine(word)):
+            return  # translator off: only the translations of marks are shown
         key = self._key(word)
         if self._mine(word) or key in self._cache:
             self.translated.emit(word, self.cached(word))
@@ -388,8 +389,11 @@ class Backend(QObject):
         Returns
         -------
         str
-            The translation, or ``"⚠ <error>"`` (errors are never cached).
+            The translation, or ``"⚠ <error>"`` (errors are never cached), also when the translator
+            is off.
         """
+        if not self.cfg["translate"]:
+            return "⚠ translator off"
         if key not in self._cache:
             engines, _, source, target, word = key
             try:
@@ -422,9 +426,10 @@ class Backend(QObject):
         Returns
         -------
         str
-            The user's translation from a mark, else the cached one, else an empty string.
+            The user's translation from a mark, else the cached one (none with the translator off),
+            else an empty string.
         """
-        return self._mine(word) or self._cache.get(self._key(word), "")
+        return self._mine(word) or (self._cache.get(self._key(word), "") if self.cfg["translate"] else "")
 
     def _mine(self, word: str) -> str:
         """Return the translation of a marked occurrence of a word; the last one edited wins.

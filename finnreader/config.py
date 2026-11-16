@@ -38,6 +38,7 @@ DEFAULTS: Config = {
     "hover_delay": 250,                  # ms
     "zoom": 1.0,                         # fraction of "fit width" (continuous) or "fit page" (page by page)
     "continuous": False,                 # False: one page at a time; True: scroll through all pages
+    "translate": True,                   # False: no machine translation, only the translations of your marks
     "interactions": {                    # gesture -> action, see GESTURES
         "hover": "none",
         "click": "translate",

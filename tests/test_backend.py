@@ -80,6 +80,23 @@ def test_fixed_translation_wins():
     assert b.cached("hiljainen") == "HILJAINEN"
 
 
+def test_translator_off():
+    b = backend(sample())
+    words = b.pageWords(0)
+    b.toggleMark([w for w in words if w["text"] == "Talo"][0])
+    wait(lambda: b.marks and b.marks[0]["translation"])               # TALO, translated while on
+    b.saveConfig({"translate": False})
+    got = []
+    b.translated.connect(lambda word, tr: got.append((word, tr)))
+    b.translate("Talo"); b.translate("ikkunat")
+    assert got == [("Talo", "TALO")] and b.cached("ikkunat") == ""   # marked: shown; unmarked: nothing
+    b.toggleMark([w for w in words if w["text"] == "ikkunat"][0])     # marking still works, untranslated
+    assert [m["translation"] for m in b.marks if m["lookup"] == "ikkunat"] == [""]
+    b.saveConfig({"translate": True})
+    b.translate("ikkunat")
+    wait(lambda: ("ikkunat", "IKKUNAT") in got)
+
+
 def test_migrate_v1():
     pdf = sample()
     w = [w for w in d.page_words(pymupdf.open(pdf)[0]) if w["text"] == "Talo"][0]

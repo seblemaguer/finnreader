@@ -43,6 +43,7 @@ ApplicationWindow {
 
     // ---- interactions: gesture -> action, from the config ----
     readonly property var ia: cfg.interactions
+    readonly property bool areaEnabled: ia.hold_drag === "translate_area" && cfg.translate  // an area is never a mark
     function act(action, w, page) {
         switch (action) {
         case "translate":
@@ -61,7 +62,7 @@ ApplicationWindow {
     readonly property string hint: {
         const names = { hover: "hover", click: "click", double_click: "double-click" }
         const parts = Object.keys(names).filter(g => ia[g] && ia[g] !== "none").map(g => names[g] + " a word to " + ia[g])
-        return parts.join(" · ") + (ia.hold_drag === "translate_area" ? " · hold and drag to translate an area" : "")
+        return parts.join(" · ") + (areaEnabled ? " · hold and drag to translate an area" : "")
             + " · swipe or tap the margins to turn pages"
     }
 
@@ -204,9 +205,16 @@ ApplicationWindow {
             Label { text: "/ " + backend.pageCount; color: root.muted; visible: backend.pageCount > 0; rightPadding: 6 }
             Item { Layout.fillWidth: true }
 
+            IconButton {
+                iconName: "translate"; objectName: "translateToggle"
+                text: checked ? "Translator on: click any word" : "Translator off: only your marked words show a translation"
+                checkable: true; checked: cfg.translate
+                onToggled: { backend.saveConfig({ translate: checked }); root.current = null }
+            }
             // language chip
             Rectangle {
                 radius: 13; height: 26
+                opacity: cfg.translate ? 1 : 0.45
                 color: root.accentSoft
                 Layout.preferredWidth: chip.implicitWidth + 20
                 Label {
@@ -380,9 +388,9 @@ ApplicationWindow {
                     onPressed: mouse => {
                         pages.forceActiveFocus()   // arrow keys turn pages; text fields keep their own arrows
                         pressX = mouse.x; pressY = mouse.y; pressTime = Date.now(); swiped = false
-                        if ((mouse.modifiers & Qt.ShiftModifier) && root.ia.hold_drag === "translate_area") startSelecting()
+                        if ((mouse.modifiers & Qt.ShiftModifier) && root.areaEnabled) startSelecting()
                     }
-                    onPressAndHold: if (root.ia.hold_drag === "translate_area" && !selecting) startSelecting()
+                    onPressAndHold: if (root.areaEnabled && !selecting) startSelecting()
                     onCanceled: { selecting = false; selectionBox.visible = false }
                     // a swipe: quick, mostly horizontal; finger moving left = swipe_left
                     onReleased: mouse => {
@@ -550,7 +558,7 @@ ApplicationWindow {
                 visible: root.footerWord !== null
             }
             Label {
-                text: root.footerWord ? "→  " + (root.shownTr || "…") : root.hint
+                text: root.footerWord ? "→  " + (root.shownTr || (cfg.translate ? "…" : "not marked (translator off)")) : root.hint
                 font.pixelSize: root.footerWord ? 19 : 14
                 color: root.footerWord ? root.accent : root.muted
                 Layout.fillWidth: true

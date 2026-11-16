@@ -141,6 +141,15 @@ def step3():
 
 def finish():
     from PySide6.QtCore import QObject
+    toggle = root.findChild(QObject, "translateToggle")
+    toggle.toggle(); toggle.toggled.emit(); app.processEvents()           # as a click on the toolbar button
+    kahvia = [w for w in b.pageWords(1) if w["text"] == "kahvia"][0]
+    click(pt((kahvia["x0"] + kahvia["x1"]) / 2, (kahvia["y0"] + kahvia["y1"]) / 2, page=1))
+    cur = var(root.property("current"))
+    check(b.cfg["translate"] is False and bool(cur) and cur["text"] == "kahvia" and root.property("shownTr") == "",
+          "translator off: an unmarked word gets no translation")
+    check(root.property("areaEnabled") is False, "translator off: no area selection")
+    b.saveConfig({"translate": True}); app.processEvents()
     before = dict(b.cfg["interactions"])
     dlg = root.findChild(QObject, "settingsDialog"); dlg.open(); app.processEvents()
     dlg.accept(); app.processEvents()
