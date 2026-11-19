@@ -60,7 +60,7 @@ ApplicationWindow {
         }
     }
     readonly property string hint: {
-        const names = { hover: "hover", click: "click", double_click: "double-click" }
+        const names = { hover: "hover", click: "click", double_click: "double-click", long_press: "hold" }
         const parts = Object.keys(names).filter(g => ia[g] && ia[g] !== "none").map(g => names[g] + " a word to " + ia[g])
         return parts.join(" · ") + (areaEnabled ? " · hold and drag to translate an area" : "")
             + " · swipe or tap the margins to turn pages"
@@ -357,6 +357,17 @@ ApplicationWindow {
                     pressAndHoldInterval: 400
                     preventStealing: selecting   // while selecting, a drag must not scroll the list
                     property real wheelSum: 0
+                    property var holdWord: null   // word pressed, for long_press: holding still on it for 2 s
+                    Timer {
+                        id: holdTimer
+                        interval: 2000
+                        onTriggered: {
+                            const area = parent
+                            area.selecting = false; selectionBox.visible = false   // held still: not an area
+                            area.swiped = true                                     // and not a click on release
+                            root.act(root.ia.long_press, area.holdWord, pageItem.index)
+                        }
+                    }
                     function wordAt(mx, my) {
                         const x = (mx - paper.x) / root.zoom, y = (my - paper.y) / root.zoom
                         for (const w of pageItem.words)
@@ -389,12 +400,15 @@ ApplicationWindow {
                     onPressed: mouse => {
                         pages.forceActiveFocus()   // arrow keys turn pages; text fields keep their own arrows
                         pressX = mouse.x; pressY = mouse.y; pressTime = Date.now(); swiped = false
+                        holdWord = root.ia.long_press && root.ia.long_press !== "none" ? wordAt(mouse.x, mouse.y) : null
+                        if (holdWord) holdTimer.restart()
                         if ((mouse.modifiers & Qt.ShiftModifier) && root.areaEnabled) startSelecting()
                     }
                     onPressAndHold: if (root.areaEnabled && !selecting) startSelecting()
-                    onCanceled: { selecting = false; selectionBox.visible = false }
+                    onCanceled: { holdTimer.stop(); selecting = false; selectionBox.visible = false }
                     // a swipe: quick, mostly horizontal; finger moving left = swipe_left
                     onReleased: mouse => {
+                        holdTimer.stop()
                         if (selecting) {
                             selecting = false; selectionBox.visible = false; swiped = true   // swiped: no click either
                             const z = root.zoom
@@ -410,6 +424,7 @@ ApplicationWindow {
                         }
                     }
                     onPositionChanged: mouse => {
+                        if (holdTimer.running && Math.hypot(mouse.x - pressX, mouse.y - pressY) > 8) holdTimer.stop()  // dragging
                         if (selecting) { select(mouse.x, mouse.y); return }
                         if (pressed || root.ia.hover !== "translate") return
                         const w = wordAt(mouse.x, mouse.y)
@@ -730,7 +745,7 @@ ApplicationWindow {
                 Repeater {
                     id: gestureRows
                     // reading order (the map from Python comes back sorted alphabetically)
-                    model: ["hover", "click", "double_click", "hold_drag", "left_margin_click", "right_margin_click", "swipe_left", "swipe_right"]
+                    model: ["hover", "click", "double_click", "long_press", "hold_drag", "left_margin_click", "right_margin_click", "swipe_left", "swipe_right"]
                         .filter(g => g in backend.gestures)
                     RowLayout {
                         id: row
@@ -740,7 +755,7 @@ ApplicationWindow {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Label {
-                            text: ({ hover: "Hover a word", click: "Click a word", double_click: "Double-click a word", hold_drag: "Hold and drag",
+                            text: ({ hover: "Hover a word", click: "Click a word", double_click: "Double-click a word", long_press: "Hold a word (2 s)", hold_drag: "Hold and drag",
                                      swipe_left: "Swipe left", swipe_right: "Swipe right",
                                      left_margin_click: "Click left margin", right_margin_click: "Click right margin" })[row.modelData] || row.modelData
                             Layout.preferredWidth: 150

@@ -27,7 +27,7 @@ Prefer an app you can just double-click? See [packaging/README.md](packaging/REA
 |---|---|
 | Click a word | See its translation in a bubble |
 | Hold, then drag over some text | Translate the whole passage (Shift+drag with a mouse) |
-| Double-click a word | Highlight it and keep it in your vocabulary (again to remove it) |
+| Hold a word for 2 seconds | Highlight it and keep it in your vocabulary (again to remove it) |
 | Click a highlighted word | Fix its translation in the bottom bar (Enter to save) |
 | Click the left or right margin, or swipe | Turn the page |
 

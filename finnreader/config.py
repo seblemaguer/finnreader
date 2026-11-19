@@ -18,6 +18,7 @@ _WORD = ("translate", "mark", "none")
 _PAGE = ("previous_page", "next_page", "none")
 # allowed actions per gesture; the first three act on the word under the pointer
 GESTURES: dict[str, tuple[str, ...]] = {"hover": ("translate", "none"), "click": _WORD, "double_click": _WORD,
+            "long_press": _WORD,  # holding still on a word for 2 s
             "swipe_left": _PAGE, "swipe_right": _PAGE, "left_margin_click": _PAGE, "right_margin_click": _PAGE,
             "hold_drag": ("translate_area", "none")}  # press and hold (or Shift+press), then drag over text
 
@@ -42,7 +43,8 @@ DEFAULTS: Config = {
     "interactions": {                    # gesture -> action, see GESTURES
         "hover": "none",
         "click": "translate",
-        "double_click": "mark",
+        "double_click": "none",
+        "long_press": "mark",
         "swipe_left": "previous_page",   # swipe = finger/mouse moving towards that side
         "swipe_right": "next_page",
         "left_margin_click": "previous_page",
