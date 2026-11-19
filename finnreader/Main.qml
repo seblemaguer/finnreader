@@ -304,6 +304,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         asynchronous: true
                         retainWhileLoading: true   // keep showing the old bitmap until the new one is ready
+                        cache: false               // PageProvider caches; Qt's cache would show a reloaded file's old pages
                         source: root.renderZoom > 0 ? "image://page/" + pageItem.index + "/" + (root.renderZoom * Screen.devicePixelRatio).toFixed(2) + "/" + pageItem.rev : ""
                     }
 

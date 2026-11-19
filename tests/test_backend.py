@@ -66,6 +66,16 @@ def test_mark_embeds_highlight():
     assert highlights(pdf) == [] and b.marks == []
 
 
+def test_every_mark_of_a_session_is_saved():
+    pdf = sample()
+    b = backend(pdf)
+    for text in ("Talo", "vanha", "Matti"):
+        b.toggleMark([w for w in b.pageWords(0) if w["text"] == text][0])
+    assert sorted(x for _, x in highlights(pdf)) == sorted(m["xref"] for m in b.marks)  # none lost on disk
+    b.removeMark(b.marks[0]["id"])
+    assert len(highlights(pdf)) == 2 and len(backend(pdf).marks) == 2
+
+
 def test_fixed_translation_wins():
     b = backend(sample())
     w = [w for w in b.pageWords(0) if w["text"] == "hiljai-"][0]

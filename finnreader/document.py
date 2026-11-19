@@ -303,7 +303,9 @@ def save_pdf(doc: pymupdf.Document, path: PathLike) -> pymupdf.Document:
     """Save the highlights into the PDF file.
 
     An incremental save appends to the file and leaves the original bytes untouched. When that is
-    not possible (e.g. a repaired file), the file is rewritten through a temporary file.
+    not possible (e.g. a repaired file), the file is rewritten through a temporary file. Either way
+    the file is reopened: with PyMuPDF 2.1, a second incremental save on the same open document
+    writes the annotations added before the first one as null objects, losing those highlights.
 
     Parameters
     ----------
@@ -315,15 +317,16 @@ def save_pdf(doc: pymupdf.Document, path: PathLike) -> pymupdf.Document:
     Returns
     -------
     pymupdf.Document
-        `doc`, or the reopened document after a full rewrite: use it from now on.
+        The reopened document (`doc` is closed): use it from now on.
     """
     if doc.can_save_incrementally():
         doc.saveIncr()
-        return doc
-    tmp = str(path) + ".tmp"
-    doc.save(tmp)
-    doc.close()
-    os.replace(tmp, path)
+        doc.close()
+    else:
+        tmp = str(path) + ".tmp"
+        doc.save(tmp)
+        doc.close()
+        os.replace(tmp, path)
     return pymupdf.open(path)
 
 
