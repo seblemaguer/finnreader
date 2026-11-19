@@ -262,10 +262,11 @@ def add_mark(doc: pymupdf.Document, page: int, words: Sequence[Word], color: str
 
 def open_marks(doc: pymupdf.Document, pdf_path: PathLike, color: str, opacity: float,
                **info: Any) -> tuple[dict[str, Mark], int]:
-    """Read the marks of a PDF, migrating version 1 metadata.
+    """Read the marks of a PDF, adding the highlights missing from it.
 
-    Version 1 kept the highlight in the JSON: those marks get a highlight added to `doc`, in memory;
-    the caller decides whether to save the PDF.
+    Version 1 metadata kept the highlight in the JSON, and older versions of FinnReader could lose
+    highlights when saving: those marks get a highlight added to `doc`, in memory (a restored mark
+    gets the new highlight's xref as id). The caller decides whether to save the PDF.
 
     Parameters
     ----------
@@ -285,10 +286,19 @@ def open_marks(doc: pymupdf.Document, pdf_path: PathLike, color: str, opacity: f
     marks : dict of str to Mark
         The marks, by id.
     migrated : int
-        How many version 1 marks were found.
+        How many highlights were added: version 1 marks plus restored ones.
     """
     meta = load_metadata(pdf_path)
-    marks = {m["id"]: m for m in meta.get("marks", []) if "xref" in m}
+    marks: dict[str, Mark] = {}
+    restored = 0
+    for m in meta.get("marks", []):
+        if "xref" not in m:
+            continue
+        if m["xref"] not in {a.xref for a in doc[m["page"]].annots(types=[pymupdf.PDF_ANNOT_HIGHLIGHT])}:
+            m["xref"] = add_highlight(doc[m["page"]], m["rects"], m["color"], opacity)
+            m["id"] = str(m["xref"])
+            restored += 1
+        marks[m["id"]] = m
     old = [m for m in meta.get("marks", []) if "xref" not in m]
     for m in old:
         key = f"{m['page']}:{m['block']}:{m['line']}:{m['word']}"
@@ -296,7 +306,7 @@ def open_marks(doc: pymupdf.Document, pdf_path: PathLike, color: str, opacity: f
         if words:
             mk = add_mark(doc, m["page"], words, color, opacity, translation=m.get("translation", ""), **info)
             marks[mk["id"]] = mk
-    return marks, len(old)
+    return marks, len(old) + restored
 
 
 def save_pdf(doc: pymupdf.Document, path: PathLike) -> pymupdf.Document:

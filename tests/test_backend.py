@@ -76,6 +76,23 @@ def test_every_mark_of_a_session_is_saved():
     assert len(highlights(pdf)) == 2 and len(backend(pdf).marks) == 2
 
 
+def test_lost_highlight_is_restored():
+    pdf = sample()
+    b = backend(pdf)
+    for text in ("Talo", "vanha", "Matti"):
+        b.toggleMark([w for w in b.pageWords(0) if w["text"] == text][0])
+    b.setTranslation(b.marks[0]["id"], "house")
+    lost = b.marks[0]["xref"]
+    doc = pymupdf.open(pdf)                                            # what older versions did: highlight gone,
+    d.remove_highlight(doc[0], lost); doc.saveIncr(); doc.close()     # the mark still in the JSON
+    assert len(highlights(pdf)) == 2
+    b = backend(pdf)
+    assert len(highlights(pdf)) == 3 and sorted(x for _, x in highlights(pdf)) == sorted(m["xref"] for m in b.marks)
+    assert [m["translation"] for m in b.marks if m["text"] == "Talo"] == ["house"]
+    assert {m["id"] for m in json.loads(pdf.with_suffix(".json").read_text())["marks"]} == {m["id"] for m in b.marks}
+    assert len(backend(pdf).marks) == 3 and len(highlights(pdf)) == 3   # nothing more to restore
+
+
 def test_fixed_translation_wins():
     b = backend(sample())
     w = [w for w in b.pageWords(0) if w["text"] == "hiljai-"][0]

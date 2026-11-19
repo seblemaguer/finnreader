@@ -270,7 +270,7 @@ class Backend(QObject):
             with DOC_LOCK:
                 self._save_pdf()
             self._save_metadata()
-            self.message.emit(f"Moved {migrated} highlight(s) into the PDF")
+            self.message.emit(f"Restored {migrated} highlight(s) in the PDF")
         self.docChanged.emit()
         self.marksChanged.emit()
 

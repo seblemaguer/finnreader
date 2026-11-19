@@ -25,7 +25,7 @@ from .translators import DEFAULT_OPUS_MODEL, ENGINES, OPUS, load_plugins, transl
 def import_one(pdf: Path, cfg: config.Config) -> str:
     """Turn the highlights of the configured colour into translated marks.
 
-    The metadata file is written; the PDF only when version 1 marks are migrated into it.
+    The metadata file is written; the PDF only when highlights of marks are missing from it.
 
     Parameters
     ----------
@@ -55,7 +55,7 @@ def import_one(pdf: Path, cfg: config.Config) -> str:
         d.save_pdf(doc, pdf)
     if new or migrated:
         d.save_metadata(pdf, marks, engines=cfg["translators"], **info)
-    note = f", {migrated} moved into the PDF" if migrated else ""
+    note = f", {migrated} restored in the PDF" if migrated else ""
     return f"{len(new)} new highlight(s) imported{note}" + (f", {failed} without translation" if failed else "")
 
 
